@@ -1,4 +1,5 @@
 const { Chess } = require('chess.js');
+const MoveStorage = require('./MoveStorage.js');
 
 class ChessAI {
 
@@ -85,7 +86,7 @@ class ChessAI {
     #aiVsAi;
 
     constructor(chess = undefined, isWhite = true, aiVsAi = false) {
-        this.#chess = chess || new Chess("r6r/pRp3k1/7p/2P5/q2P2BP/4BR2/8/4K1N1 w - - 0 25");
+        this.#chess = chess || new Chess();
         this.#isWhite = isWhite;
         this.#aiVsAi = aiVsAi;
     }
@@ -113,24 +114,31 @@ class ChessAI {
         return orderedMoves;
     }
 
-    minimax(depth, maximizingPlayer, alpha, beta) {
-        if (this.#chess.isCheckmate()) {
-            return maximizingPlayer ? -Infinity : Infinity;
-        }
-        if (depth === 0) {
-            return maximizingPlayer ? -this.evaluateBoard(this.#chess.board()) : this.evaluateBoard(this.#chess.board());
-        }
+    isDraw() {
+        return this.#chess.isInsufficientMaterial() || this.#chess.isStalemate() || this.#chess.isThreefoldRepetition();
+    }
 
+    minimax(depth, maximizingPlayer, alpha, beta) {
+        if (this.#chess.isCheckmate()) return maximizingPlayer ? -Infinity : Infinity;
+        //if (this.isDraw()) return 0;
+        if (depth === 0) return this.evaluateBoard(this.#chess.board());
+
+        const moves = this.#shuffle(this.#chess.moves());
         if (maximizingPlayer) {
             let bestMoveValue = -Infinity;
-            for (const move of this.orderMoves(this.#chess.moves())) {
+            for (let i = 0; i < moves.length; i++) {
+                const move = moves[i];
+
                 this.#chess.move(move);
+                /*const c = MoveStorage.check(this.#chess.fen());
+                if (!c) bestMoveValue = Math.max(this.minimax(depth - 1, false, alpha, beta));
+                else bestMoveValue = c.score;*/
                 bestMoveValue = Math.max(this.minimax(depth - 1, false, alpha, beta));
                 this.#chess.undo();
 
                 alpha = Math.max(alpha, bestMoveValue);
-                if (alpha >= beta) {
-                    return beta;
+                if (beta <= alpha) {
+                    break
                 }
 
             }
@@ -138,14 +146,20 @@ class ChessAI {
             return bestMoveValue;
         } else {
             let bestMoveValue = Infinity;
-            for (const move of this.orderMoves(this.#chess.moves())) {
+
+            for (let i = 0; i < moves.length; i++) {
+                const move = moves[i];
+
                 this.#chess.move(move);
-                bestMoveValue = Math.min(this.minimax(depth - 1, true, alpha, beta));
+                /*const c = MoveStorage.check(this.#chess.fen());
+                if (!c) bestMoveValue = Math.min(this.minimax(depth - 1, false, alpha, beta));
+                else bestMoveValue = c.score;*/
+                bestMoveValue = Math.min(this.minimax(depth - 1, false, alpha, beta));
                 this.#chess.undo();
 
                 beta = Math.min(beta, bestMoveValue);
                 if (beta <= alpha) {
-                    return alpha;
+                    break;
                 }
 
             }
@@ -160,12 +174,15 @@ class ChessAI {
         let bestMove = null;
         let bestMoveValue = -Infinity;
 
-        for (const move of this.orderMoves(this.#chess.moves())) {
+        const moves = this.#shuffle(this.#chess.moves());
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+
             this.#chess.move(move);
             const value = this.minimax(depth - 1, false, -Infinity, Infinity);
             this.#chess.undo();
 
-            //console.log(value);
+            console.log(value);
             if (value === Infinity) {
                 return move;
             }
@@ -191,6 +208,11 @@ class ChessAI {
 
         totalEvaluation += this.getControlOfCenter(board);
         return totalEvaluation;
+    }
+
+    #shuffle(array){
+        for(let j, x, i = array.length; i; j = Math.floor(Math.random() * i), x = array[--i], array[i] = array[j], array[j] = x);
+        return array;
     }
 
     evaluateTable(board) {

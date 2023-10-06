@@ -13,8 +13,8 @@ while (!chessAI.chess.isGameOver()) {
     console.log(bestMove);
     chessAI.printBoard();
 
-    //ask();
-    //chessAI.printBoard();
+    ask();
+    chessAI.printBoard();
 }
 
 function ask() {

@@ -1,9 +1,24 @@
+const { QuickDB } = require("quick.db");
+
+const db = new QuickDB();
+
 class MoveStorage {
 
-    // todo: mysql
+    addMove(moveStr) {
+        const { fen, move, score } = this.readMove(moveStr);
+        if (!this.check(moveStr)) {
+            db.set(fen, moveStr);
+        }
+    }
 
-    addMove(move) {
-        const { fen, move, score } = readMove(move);
+    check(moveStr) {
+        const m = this.readMove(moveStr);
+        const { fen, move, score } = m;
+        if (!db.has(fen)) return false;
+        var d;
+        db.get(fen).then(data => d = data);
+
+        return d;
     }
 
     readMove(moveStr) {
@@ -19,3 +34,5 @@ class MoveStorage {
         }
     }
 }
+
+module.exports = new MoveStorage()
