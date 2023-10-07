@@ -1,5 +1,4 @@
 const { Chess } = require('chess.js');
-const MoveStorage = require('./MoveStorage.js');
 
 class ChessAI {
 
@@ -99,26 +98,11 @@ class ChessAI {
         return this.#isWhite;
     }
 
-    orderMoves() {
-        const moves = this.#chess.moves();
-        const orderedMoves = [];
-        for (const move of moves) {
-            this.#chess.move(move);
-            if (this.#chess.isCheckmate()) {
-                orderedMoves.unshift(move);
-            } else {
-                orderedMoves.push(move);
-            }
-            this.#chess.undo();
-        }
-        return orderedMoves;
-    }
-
     isDraw() {
         return this.#chess.isInsufficientMaterial() || this.#chess.isStalemate() || this.#chess.isThreefoldRepetition();
     }
 
-    minimax(depth, maximizingPlayer, alpha, beta) {
+    /*minimax(depth, maximizingPlayer, alpha, beta) {
         if (this.#chess.isCheckmate()) return maximizingPlayer ? -Infinity : Infinity;
         //if (this.isDraw()) return 0;
         if (depth === 0) return this.evaluateBoard(this.#chess.board());
@@ -132,7 +116,7 @@ class ChessAI {
                 this.#chess.move(move);
                 /*const c = MoveStorage.check(this.#chess.fen());
                 if (!c) bestMoveValue = Math.max(this.minimax(depth - 1, false, alpha, beta));
-                else bestMoveValue = c.score;*/
+                else bestMoveValue = c.score;
                 bestMoveValue = Math.max(this.minimax(depth - 1, false, alpha, beta));
                 this.#chess.undo();
 
@@ -153,7 +137,7 @@ class ChessAI {
                 this.#chess.move(move);
                 /*const c = MoveStorage.check(this.#chess.fen());
                 if (!c) bestMoveValue = Math.min(this.minimax(depth - 1, false, alpha, beta));
-                else bestMoveValue = c.score;*/
+                else bestMoveValue = c.score;
                 bestMoveValue = Math.min(this.minimax(depth - 1, false, alpha, beta));
                 this.#chess.undo();
 
@@ -167,8 +151,57 @@ class ChessAI {
             return bestMoveValue;
         }
 
+    }*/
+
+    orderMoves(moves) {
+        moves.sort((a, b) => {
+            if (a.flags.includes('e') && !b.flags.includes('e')) return -1;
+            if (!a.flags.includes('e') && b.flags.includes('e')) return 1;
+
+            if (a.flags.includes('c') && !b.flags.includes('c')) return -1;
+            if (!a.flags.includes('c') && b.flags.includes('c')) return 1;
+            
+            return 0;
+        });
     }
 
+    // negamax
+    negamax(depth, alpha, beta, extension = 0) {
+        //extension = this.calculateExtension(extension, depth);
+        if (this.#chess.isCheckmate()) return -Infinity;
+        if (depth === 0) return this.evaluateBoard(this.#chess.board());
+
+        let bestMoveValue = -Infinity;
+        const moves = this.#chess.moves({ verbose: true });
+        moves.sort((a, b) => {
+            if (a.flags.includes('c') && !b.flags.includes('c')) return -1;
+            if (!a.flags.includes('c') && b.flags.includes('c')) return 1;
+
+            return 0;
+        });
+        for (let i = 0; i < moves.length; i++) {
+            const move = moves[i];
+
+            this.#chess.move(move);
+            const value = -this.negamax(depth - 1 + extension, -beta, -alpha, extension);
+            this.#chess.undo();
+
+            bestMoveValue = Math.max(bestMoveValue, value);
+            alpha = Math.max(alpha, value);
+            if (alpha >= beta) {
+                break;
+            }
+        }
+
+        return bestMoveValue;
+    }
+    
+    calculateExtension(currentExtension, depth) {
+        if (this.#chess.isCheck() && currentExtension < 10) {
+            return currentExtension + 1;
+        }
+        return 0;
+    }
 
     getBestMove(depth) {
         let bestMove = null;
@@ -179,7 +212,7 @@ class ChessAI {
             const move = moves[i];
 
             this.#chess.move(move);
-            const value = this.minimax(depth - 1, false, -Infinity, Infinity);
+            const value = this.negamax(depth - 1, -Infinity, Infinity);
             this.#chess.undo();
 
             console.log(value);
@@ -198,30 +231,12 @@ class ChessAI {
 
     evaluateBoard(board) {
         let totalEvaluation = 0;
-        totalEvaluation += this.evaluateTable(board);
 
         for (const row of board) {
             for (const square of row) {
+                if (!square) continue;
+                
                 totalEvaluation += this.getPieceValue(square);
-            }
-        }
-
-        totalEvaluation += this.getControlOfCenter(board);
-        return totalEvaluation;
-    }
-
-    #shuffle(array){
-        for(let j, x, i = array.length; i; j = Math.floor(Math.random() * i), x = array[--i], array[i] = array[j], array[j] = x);
-        return array;
-    }
-
-    evaluateTable(board) {
-        let totalEvaluation = 0;
-        for (const row of board) {
-            for (const square of row) {
-                if (square === null) {
-                    continue;
-                }
 
                 const piece = this.#chess.get(square.square);
                 if (piece.color == "w" && this.isWhite) {
@@ -232,7 +247,13 @@ class ChessAI {
             }
         }
 
+        totalEvaluation += this.getControlOfCenter(board);
         return totalEvaluation;
+    }
+
+    #shuffle(array){
+        for(let j, x, i = array.length; i; j = Math.floor(Math.random() * i), x = array[--i], array[i] = array[j], array[j] = x);
+        return array;
     }
 
     getTableValue(square, color) {
@@ -296,7 +317,7 @@ class ChessAI {
                     break;
             }
         }
-        return totalEvaluation;
+        return totalEvaluation * 10;
     }
 
     getMobility(board) {
